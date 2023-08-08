@@ -60,5 +60,5 @@ async fn main() {
 
     let mut pages: Pages<BlogDB> = Pages::new(2, 1, BlogDB { pool: pool });
     // print!("{:#?}", pages);
-    print!("{:#?}", pages.next());
+    pages.next();
 }
