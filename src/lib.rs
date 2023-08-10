@@ -9,12 +9,12 @@ pub struct Pages {
 }
 
 impl Pages {
-    pub fn new(length: usize, limit: usize, f: fn(usize, usize) -> String) -> Pages {
+    pub fn new(length: usize, limit: usize, f: Option<fn(usize, usize) -> String>) -> Pages {
         Pages {
             offset: 0,
             length,
             limit,
-            f,
+            f: f.unwrap_or(|_: usize, _| -> String { "".to_string() }),
         }
     }
 
@@ -123,6 +123,34 @@ mod tests {
     }
 
     #[test]
+    fn no_function_passing() {
+        let total_items = 10usize;
+        let items_per_page = 5usize;
+
+        let pages = Pages::new(total_items, items_per_page, None);
+        assert_eq!(
+            pages.with_offset(0),
+            Page {
+                offset: 0,
+                length: 5,
+                start: 0,
+                end: 4,
+                html: "".to_string()
+            }
+        );
+        assert_eq!(
+            pages.with_offset(1),
+            Page {
+                offset: 1,
+                length: 5,
+                start: 5,
+                end: 9,
+                html: "".to_string()
+            }
+        );
+    }
+
+    #[test]
     fn empty_page() {
         let total_items = 0usize;
         let items_per_page = 5usize;
@@ -137,7 +165,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
             pages.with_offset(0),
             Page {
@@ -175,7 +203,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
             pages.with_offset(0),
             Page {
@@ -213,7 +241,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
             pages.with_offset(0),
             Page {
@@ -262,7 +290,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
             pages.with_offset(0),
             Page {
@@ -300,7 +328,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
             pages.with_offset(0),
             Page {
@@ -360,7 +388,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
 
         assert_eq!(
             pages.with_offset(0),
@@ -422,7 +450,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
             pages.with_offset(0),
             Page {
@@ -472,7 +500,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
         for p in pages {
             assert_eq!(
                 p,
@@ -502,7 +530,7 @@ mod tests {
                 )
             })
         };
-        let pages = Pages::new(total_items, items_per_page, f);
+        let pages = Pages::new(total_items, items_per_page, Some(f));
         for p in &pages {
             assert_eq!(
                 p,
@@ -531,75 +559,31 @@ mod tests {
 
     #[test]
     fn offset() {
-        let f: fn(usize, usize) -> String = |x, y| -> String {
-            (x..x + y).fold("".to_string(), |s: String, t: usize| {
-                format!(
-                    "{}{}{}{}",
-                    s,
-                    "<a href=\"www.test.com/".to_string(),
-                    t.to_string(),
-                    "\"></a></br>".to_string()
-                )
-            })
-        };
-        let pages = Pages::new(100, 5, f);
+        let pages = Pages::new(100, 5, None);
         assert_eq!(0, pages.offset());
     }
 
     #[test]
     fn length() {
-        let f: fn(usize, usize) -> String = |x, y| -> String {
-            (x..x + y).fold("".to_string(), |s: String, t: usize| {
-                format!(
-                    "{}{}{}{}",
-                    s,
-                    "<a href=\"www.test.com/".to_string(),
-                    t.to_string(),
-                    "\"></a></br>".to_string()
-                )
-            })
-        };
-        let pages = Pages::new(100, 5, f);
+        let pages = Pages::new(100, 5, None);
         assert_eq!(100, pages.length());
     }
 
     #[test]
     fn limit() {
-        let f: fn(usize, usize) -> String = |x, y| -> String {
-            (x..x + y).fold("".to_string(), |s: String, t: usize| {
-                format!(
-                    "{}{}{}{}",
-                    s,
-                    "<a href=\"www.test.com/".to_string(),
-                    t.to_string(),
-                    "\"></a></br>".to_string()
-                )
-            })
-        };
-        let pages = Pages::new(100, 5, f);
+        let pages = Pages::new(100, 5, None);
         assert_eq!(5, pages.limit());
     }
 
     #[test]
     fn page_count() {
-        let f: fn(usize, usize) -> String = |x, y| -> String {
-            (x..x + y).fold("".to_string(), |s: String, t: usize| {
-                format!(
-                    "{}{}{}{}",
-                    s,
-                    "<a href=\"www.test.com/".to_string(),
-                    t.to_string(),
-                    "\"></a></br>".to_string()
-                )
-            })
-        };
-        let pages = Pages::new(100, 5, f);
+        let pages = Pages::new(100, 5, None);
         assert_eq!(20, pages.page_count());
 
-        let pages = Pages::new(101, 5, f);
+        let pages = Pages::new(101, 5, None);
         assert_eq!(21, pages.page_count());
 
-        let pages = Pages::new(99, 5, f);
+        let pages = Pages::new(99, 5, None);
         assert_eq!(20, pages.page_count());
     }
 }
