@@ -21,18 +21,18 @@ impl Pages {
     pub fn with_offset(&self, offset: usize) -> Page {
         let mut page = Page::default();
         page.offset = offset;
-        page.start = min(page.offset * self.limit, self.length);
-        page.end = min(page.start + self.limit, self.length);
-        page.length = max(page.end - page.start, 0);
+        page.begin = min(page.offset * self.limit, self.length);
+        page.end = min(page.begin + self.limit, self.length);
+        page.length = max(page.end - page.begin, 0);
 
         if page.length == 0 {
-            page.start = 0;
+            page.begin = 0;
             page.end = 0;
         };
         if page.length > 0 {
             page.end -= 1;
         };
-        page.html = (self.f)(page.start, page.length);
+        page.html = (self.f)(page.begin, page.length);
         page
     }
 
@@ -79,7 +79,7 @@ impl IntoIterator for &Pages {
 pub struct Page {
     pub offset: usize,
     pub length: usize,
-    pub start: usize,
+    pub begin: usize,
     pub end: usize,
     html: String,
 }
@@ -95,7 +95,7 @@ impl Default for Page {
         Self {
             offset: 0usize,
             length: 0usize,
-            start: 0usize,
+            begin: 0usize,
             end: 0usize,
             html: "".to_string(),
         }
@@ -115,7 +115,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -133,7 +133,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 5,
-                start: 0,
+                begin: 0,
                 end: 4,
                 html: "".to_string()
             }
@@ -143,7 +143,7 @@ mod tests {
             Page {
                 offset: 1,
                 length: 5,
-                start: 5,
+                begin: 5,
                 end: 9,
                 html: "".to_string()
             }
@@ -171,7 +171,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -181,7 +181,7 @@ mod tests {
             Page {
                 offset: 1,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -209,7 +209,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -219,7 +219,7 @@ mod tests {
             Page {
                 offset: 1,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -247,7 +247,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 5,
-                start: 0,
+                begin: 0,
                 end: 4,
                 html: "<a href=\"www.test.com/0\"></a></br><a href=\"www.test.com/1\"></a></br><a href=\"www.test.com/2\"></a></br><a href=\"www.test.com/3\"></a></br><a href=\"www.test.com/4\"></a></br>"
                     .to_string()
@@ -258,7 +258,7 @@ mod tests {
             Page {
                 offset: 1,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -268,7 +268,7 @@ mod tests {
             Page {
                 offset: 2,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -296,7 +296,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 1,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "<a href=\"www.test.com/0\"></a></br>".to_string()
             }
@@ -306,7 +306,7 @@ mod tests {
             Page {
                 offset: 1,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -334,7 +334,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 2,
-                start: 0,
+                begin: 0,
                 end: 1,
                 html: "<a href=\"www.test.com/0\"></a></br><a href=\"www.test.com/1\"></a></br>"
                     .to_string()
@@ -345,7 +345,7 @@ mod tests {
             Page {
                 offset: 1,
                 length: 2,
-                start: 2,
+                begin: 2,
                 end: 3,
                 html: "<a href=\"www.test.com/2\"></a></br><a href=\"www.test.com/3\"></a></br>"
                     .to_string()
@@ -356,7 +356,7 @@ mod tests {
             Page {
                 offset: 2,
                 length: 1,
-                start: 4,
+                begin: 4,
                 end: 4,
                 html: "<a href=\"www.test.com/4\"></a></br>".to_string()
             }
@@ -366,7 +366,7 @@ mod tests {
             Page {
                 offset: 3,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -395,7 +395,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 2,
-                start: 0,
+                begin: 0,
                 end: 1,
                 html: "<a href=\"www.test.com/0\"></a></br><a href=\"www.test.com/1\"></a></br>"
                     .to_string()
@@ -406,7 +406,7 @@ mod tests {
             Page {
                 offset: 1,
                 length: 2,
-                start: 2,
+                begin: 2,
                 end: 3,
                 html: "<a href=\"www.test.com/2\"></a></br><a href=\"www.test.com/3\"></a></br>"
                     .to_string()
@@ -417,7 +417,7 @@ mod tests {
             Page {
                 offset: 2,
                 length: 2,
-                start: 4,
+                begin: 4,
                 end: 5,
                 html: "<a href=\"www.test.com/4\"></a></br><a href=\"www.test.com/5\"></a></br>"
                     .to_string()
@@ -428,7 +428,7 @@ mod tests {
             Page {
                 offset: 3,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -456,7 +456,7 @@ mod tests {
             Page {
                 offset: 0,
                 length: 3,
-                start: 0,
+                begin: 0,
                 end: 2,
                 html: "<a href=\"www.test.com/0\"></a></br><a href=\"www.test.com/1\"></a></br><a href=\"www.test.com/2\"></a></br>"
                     .to_string()
@@ -467,7 +467,7 @@ mod tests {
             Page {
                 offset: 1,
                 length: 2,
-                start: 3,
+                begin: 3,
                 end: 4,
                 html: "<a href=\"www.test.com/3\"></a></br><a href=\"www.test.com/4\"></a></br>"
                     .to_string()
@@ -478,7 +478,7 @@ mod tests {
             Page {
                 offset: 2,
                 length: 0,
-                start: 0,
+                begin: 0,
                 end: 0,
                 html: "".to_string()
             }
@@ -507,7 +507,7 @@ mod tests {
                 Page {
                     offset: 0,
                     length: 1,
-                    start: 0,
+                    begin: 0,
                     end: 0,
                     html: "<a href=\"www.test.com/0\"></a></br>".to_string()
                 }
@@ -537,7 +537,7 @@ mod tests {
                 Page {
                     offset: 0,
                     length: 1,
-                    start: 0,
+                    begin: 0,
                     end: 0,
                     html: "<a href=\"www.test.com/0\"></a></br>".to_string()
                 }
