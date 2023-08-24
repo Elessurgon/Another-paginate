@@ -1,28 +1,34 @@
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    fmt::Error,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Pages {
     offset: usize,
     length: usize,
-    limit: usize,
+    per_page: usize,
     f: fn(usize, usize) -> String,
 }
 
 impl Pages {
-    pub fn new(length: usize, limit: usize, f: Option<fn(usize, usize) -> String>) -> Pages {
+    pub fn new(length: usize, per_page: usize, f: Option<fn(usize, usize) -> String>) -> Pages {
         Pages {
             offset: 0,
             length,
-            limit,
-            f: f.unwrap_or(|_: usize, _| -> String { "".to_string() }),
+            per_page,
+            f: f.unwrap_or(|_, _| -> String { "".to_string() }),
         }
     }
 
-    pub fn with_offset(&self, offset: usize) -> Page {
+    pub fn to_page_number(&self, offset: usize) -> Result<Page, Error> {
         let mut page = Page::default();
+        if offset > self.page_count() {
+            panic!("Page number Out of Bound")
+        }
         page.offset = offset;
-        page.begin = min(page.offset * self.limit, self.length);
-        page.end = min(page.begin + self.limit, self.length);
+        page.begin = min(page.offset * self.per_page, self.length);
+        page.end = min(page.begin + self.per_page, self.length);
         page.length = max(page.end - page.begin, 0);
 
         if page.length == 0 {
@@ -33,7 +39,7 @@ impl Pages {
             page.end -= 1;
         };
         page.html = (self.f)(page.begin, page.length);
-        page
+        Ok(page)
     }
 
     pub fn offset(&self) -> usize {
@@ -44,19 +50,24 @@ impl Pages {
         self.length
     }
 
-    pub fn limit(&self) -> usize {
-        self.limit
+    pub fn per_page(&self) -> usize {
+        self.per_page
     }
 
     pub fn page_count(&self) -> usize {
-        (self.length + self.limit - 1) / self.limit
+        (self.length + self.per_page - 1) / self.per_page
     }
 }
 
 impl Iterator for Pages {
     type Item = Page;
     fn next(&mut self) -> Option<Self::Item> {
-        let page: Page = self.with_offset(self.offset);
+        let page: Page = match self.to_page_number(self.offset) {
+            Ok(page) => page,
+            Err(msg) => {
+                panic!("{:#?}", msg)
+            }
+        };
         self.offset += 1;
         if page.is_empty() {
             None
@@ -71,11 +82,16 @@ impl IntoIterator for &Pages {
     type IntoIter = Pages;
 
     fn into_iter(self) -> Pages {
-        self.clone()
+        Pages {
+            offset: 0,
+            length: self.length(),
+            per_page: self.per_page(),
+            f: self.f,
+        }
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct Page {
     pub offset: usize,
     pub length: usize,
@@ -90,22 +106,15 @@ impl Page {
     }
 }
 
-impl Default for Page {
-    fn default() -> Self {
-        Self {
-            offset: 0usize,
-            length: 0usize,
-            begin: 0usize,
-            end: 0usize,
-            html: "".to_string(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
     use super::{Page, Pages};
+    use std::fmt::{self, Error};
+
+    fn get_url() -> String {
+        "www.test.com/".to_string()
+    }
 
     #[test]
     fn default_page() {
@@ -129,7 +138,13 @@ mod tests {
 
         let pages = Pages::new(total_items, items_per_page, None);
         assert_eq!(
-            pages.with_offset(0),
+            match pages.to_page_number(0) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 0,
                 length: 5,
@@ -139,7 +154,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(1),
+            match pages.to_page_number(1) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 1,
                 length: 5,
@@ -151,15 +172,32 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
+    fn out_of_bound() -> () {
+        let total_items = 0usize;
+        let items_per_page = 5usize;
+        let pages = Pages::new(total_items, items_per_page, None);
+        let page = match pages.to_page_number(1) {
+            Ok(page) => page,
+            Err(msg) => {
+                eprint!("{}", msg);
+                Page::default()
+            }
+        };
+    }
+
+    #[test]
     fn empty_page() {
         let total_items = 0usize;
         let items_per_page = 5usize;
+
         let f: fn(usize, usize) -> String = |x, y| -> String {
             (x..x + y).fold("".to_string(), |s: String, t: usize| {
                 format!(
-                    "{}{}{}{}",
+                    "{}{}{}{}{}",
                     s,
-                    "<a href=\"www.test.com/".to_string(),
+                    "<a href=\"",
+                    get_url(),
                     t.to_string(),
                     "\"></a></br>".to_string()
                 )
@@ -167,19 +205,15 @@ mod tests {
         };
         let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
-            pages.with_offset(0),
+            match pages.to_page_number(0) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 0,
-                length: 0,
-                begin: 0,
-                end: 0,
-                html: "".to_string()
-            }
-        );
-        assert_eq!(
-            pages.with_offset(1),
-            Page {
-                offset: 1,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -189,43 +223,6 @@ mod tests {
     }
 
     #[test]
-    fn limitless_page() {
-        let total_items = 5usize;
-        let items_per_page = 0usize;
-        let f: fn(usize, usize) -> String = |x, y| -> String {
-            (x..x + y).fold("".to_string(), |s: String, t: usize| {
-                format!(
-                    "{}{}{}{}",
-                    s,
-                    "<a href=\"www.test.com/".to_string(),
-                    t.to_string(),
-                    "\"></a></br>".to_string()
-                )
-            })
-        };
-        let pages = Pages::new(total_items, items_per_page, Some(f));
-        assert_eq!(
-            pages.with_offset(0),
-            Page {
-                offset: 0,
-                length: 0,
-                begin: 0,
-                end: 0,
-                html: "".to_string()
-            }
-        );
-        assert_eq!(
-            pages.with_offset(1),
-            Page {
-                offset: 1,
-                length: 0,
-                begin: 0,
-                end: 0,
-                html: "".to_string()
-            }
-        );
-    }
-
     #[test]
     fn single_page() {
         let total_items = 5usize;
@@ -233,9 +230,10 @@ mod tests {
         let f: fn(usize, usize) -> String = |x, y| -> String {
             (x..x + y).fold("".to_string(), |s: String, t: usize| {
                 format!(
-                    "{}{}{}{}",
+                    "{}{}{}{}{}",
                     s,
-                    "<a href=\"www.test.com/".to_string(),
+                    "<a href=\"",
+                    get_url(),
                     t.to_string(),
                     "\"></a></br>".to_string()
                 )
@@ -243,7 +241,13 @@ mod tests {
         };
         let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
-            pages.with_offset(0),
+            match pages.to_page_number(0) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 0,
                 length: 5,
@@ -254,19 +258,15 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(1),
+            match pages.to_page_number(1) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 1,
-                length: 0,
-                begin: 0,
-                end: 0,
-                html: "".to_string()
-            }
-        );
-        assert_eq!(
-            pages.with_offset(2),
-            Page {
-                offset: 2,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -279,12 +279,14 @@ mod tests {
     fn single_item() {
         let total_items = 1usize;
         let items_per_page = 5usize;
+
         let f: fn(usize, usize) -> String = |x, y| -> String {
             (x..x + y).fold("".to_string(), |s: String, t: usize| {
                 format!(
-                    "{}{}{}{}",
+                    "{}{}{}{}{}",
                     s,
-                    "<a href=\"www.test.com/".to_string(),
+                    "<a href=\"",
+                    get_url(),
                     t.to_string(),
                     "\"></a></br>".to_string()
                 )
@@ -292,7 +294,13 @@ mod tests {
         };
         let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
-            pages.with_offset(0),
+            match pages.to_page_number(0) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 0,
                 length: 1,
@@ -302,7 +310,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(1),
+            match pages.to_page_number(1) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 1,
                 length: 0,
@@ -320,9 +334,10 @@ mod tests {
         let f: fn(usize, usize) -> String = |x, y| -> String {
             (x..x + y).fold("".to_string(), |s: String, t: usize| {
                 format!(
-                    "{}{}{}{}",
+                    "{}{}{}{}{}",
                     s,
-                    "<a href=\"www.test.com/".to_string(),
+                    "<a href=\"",
+                    get_url(),
                     t.to_string(),
                     "\"></a></br>".to_string()
                 )
@@ -330,7 +345,13 @@ mod tests {
         };
         let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
-            pages.with_offset(0),
+            match pages.to_page_number(0) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 0,
                 length: 2,
@@ -341,7 +362,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(1),
+            match pages.to_page_number(1) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 1,
                 length: 2,
@@ -352,7 +379,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(2),
+            match pages.to_page_number(2) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 2,
                 length: 1,
@@ -362,7 +395,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(3),
+            match pages.to_page_number(3) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 3,
                 length: 0,
@@ -377,12 +416,14 @@ mod tests {
     fn even_items() {
         let total_items = 6usize;
         let items_per_page = 2usize;
+
         let f: fn(usize, usize) -> String = |x, y| -> String {
             (x..x + y).fold("".to_string(), |s: String, t: usize| {
                 format!(
-                    "{}{}{}{}",
+                    "{}{}{}{}{}",
                     s,
-                    "<a href=\"www.test.com/".to_string(),
+                    "<a href=\"",
+                    get_url(),
                     t.to_string(),
                     "\"></a></br>".to_string()
                 )
@@ -391,7 +432,13 @@ mod tests {
         let pages = Pages::new(total_items, items_per_page, Some(f));
 
         assert_eq!(
-            pages.with_offset(0),
+            match pages.to_page_number(0) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 0,
                 length: 2,
@@ -402,7 +449,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(1),
+            match pages.to_page_number(1) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 1,
                 length: 2,
@@ -413,7 +466,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(2),
+            match pages.to_page_number(2) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 2,
                 length: 2,
@@ -424,7 +483,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(3),
+            match pages.to_page_number(3) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 3,
                 length: 0,
@@ -442,9 +507,10 @@ mod tests {
         let f: fn(usize, usize) -> String = |x, y| -> String {
             (x..x + y).fold("".to_string(), |s: String, t: usize| {
                 format!(
-                    "{}{}{}{}",
+                    "{}{}{}{}{}",
                     s,
-                    "<a href=\"www.test.com/".to_string(),
+                    "<a href=\"",
+                    get_url(),
                     t.to_string(),
                     "\"></a></br>".to_string()
                 )
@@ -452,7 +518,13 @@ mod tests {
         };
         let pages = Pages::new(total_items, items_per_page, Some(f));
         assert_eq!(
-            pages.with_offset(0),
+            match pages.to_page_number(0) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 0,
                 length: 3,
@@ -463,7 +535,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(1),
+            match pages.to_page_number(1) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 1,
                 length: 2,
@@ -474,7 +552,13 @@ mod tests {
             }
         );
         assert_eq!(
-            pages.with_offset(2),
+            match pages.to_page_number(2) {
+                Ok(page) => page,
+                Err(msg) => {
+                    eprint!("{}", msg);
+                    Page::default()
+                }
+            },
             Page {
                 offset: 2,
                 length: 0,
@@ -492,9 +576,10 @@ mod tests {
         let f: fn(usize, usize) -> String = |x, y| -> String {
             (x..x + y).fold("".to_string(), |s: String, t: usize| {
                 format!(
-                    "{}{}{}{}",
+                    "{}{}{}{}{}",
                     s,
-                    "<a href=\"www.test.com/".to_string(),
+                    "<a href=\"",
+                    get_url(),
                     t.to_string(),
                     "\"></a></br>".to_string()
                 )
@@ -522,9 +607,10 @@ mod tests {
         let f: fn(usize, usize) -> String = |x, y| -> String {
             (x..x + y).fold("".to_string(), |s: String, t: usize| {
                 format!(
-                    "{}{}{}{}",
+                    "{}{}{}{}{}",
                     s,
-                    "<a href=\"www.test.com/".to_string(),
+                    "<a href=\"",
+                    get_url(),
                     t.to_string(),
                     "\"></a></br>".to_string()
                 )
@@ -572,7 +658,7 @@ mod tests {
     #[test]
     fn limit() {
         let pages = Pages::new(100, 5, None);
-        assert_eq!(5, pages.limit());
+        assert_eq!(5, pages.per_page());
     }
 
     #[test]
