@@ -128,13 +128,13 @@ mod tests {
     #[test]
     fn test_iter() {
         let pages = Pages::new(10, 2, None);
-        let mut listPage: Vec<Page> = Vec::new();
+        let mut list_page: Vec<Page> = Vec::new();
         let iter = pages.into_iter();
         for page in iter {
             // eprintln!("{:#?}", page);
-            listPage.push(page);
+            list_page.push(page);
         }
-        assert_eq!(listPage.len(), 5);
+        assert_eq!(list_page.len(), 5);
     }
 
     #[test]
