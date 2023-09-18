@@ -11,9 +11,11 @@ impl fmt::Display for OutOfBound {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+// page_number (offset) is 0-indexed, not lua or R
+
+#[derive(Clone, Debug, Eq, PartialEq, Copy)]
 pub struct Pages {
-    offset: usize,
+    page_number: usize,
     length: usize,
     per_page: usize,
     f: fn(usize, usize) -> String,
@@ -22,21 +24,21 @@ pub struct Pages {
 impl Pages {
     pub fn new(length: usize, per_page: usize, f: Option<fn(usize, usize) -> String>) -> Pages {
         Pages {
-            offset: 0,
+            page_number: 0,
             length,
             per_page,
             f: f.unwrap_or(|_, _| -> String { "".to_string() }),
         }
     }
 
-    pub fn to_page_number(&self, offset: usize) -> Result<Page, OutOfBound> {
+    pub fn to_page_number(&self, page_number: usize) -> Result<Page, OutOfBound> {
         let mut page = Page::default();
 
-        if offset > self.page_count() {
+        if page_number >= self.page_count() {
             return Err(OutOfBound);
         }
-        page.offset = offset;
-        page.begin = min(page.offset * self.per_page, self.length);
+        page.page_number = page_number;
+        page.begin = min(page.page_number * self.per_page, self.length);
         page.end = min(page.begin + self.per_page, self.length);
         page.length = max(page.end - page.begin, 0);
 
@@ -52,7 +54,7 @@ impl Pages {
     }
 
     pub fn offset(&self) -> usize {
-        self.offset
+        self.page_number
     }
 
     pub fn length(&self) -> usize {
@@ -71,18 +73,12 @@ impl Pages {
 impl Iterator for Pages {
     type Item = Page;
     fn next(&mut self) -> Option<Self::Item> {
-        let page: Page = match self.to_page_number(self.offset) {
-            Ok(page) => page,
-            Err(msg) => {
-                panic!("{:#?}", msg)
-            }
+        let page: Option<Page> = match self.to_page_number(self.page_number) {
+            Ok(page) => Some(page),
+            Err(msg) => None,
         };
-        self.offset += 1;
-        if page.is_empty() {
-            None
-        } else {
-            Some(page)
-        }
+        self.page_number += 1;
+        page
     }
 }
 
@@ -92,7 +88,7 @@ impl IntoIterator for &Pages {
 
     fn into_iter(self) -> Pages {
         Pages {
-            offset: 0,
+            page_number: 0,
             length: self.length(),
             per_page: self.per_page(),
             f: self.f,
@@ -102,7 +98,7 @@ impl IntoIterator for &Pages {
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct Page {
-    pub offset: usize,
+    pub page_number: usize,
     pub length: usize,
     pub begin: usize,
     pub end: usize,
@@ -127,14 +123,39 @@ mod tests {
 
     #[test]
     fn test_iter() {
-        let pages = Pages::new(10, 2, None);
-        let mut list_page: Vec<Page> = Vec::new();
-        let iter = pages.into_iter();
-        for page in iter {
-            // eprintln!("{:#?}", page);
-            list_page.push(page);
-        }
-        assert_eq!(list_page.len(), 5);
+        let pages = Pages::new(6, 2, None);
+        let mut pages_iter = pages.into_iter();
+        assert_eq!(
+            pages_iter.next(),
+            Some(Page {
+                page_number: 0,
+                length: 2,
+                begin: 0,
+                end: 1,
+                html: "".to_string(),
+            })
+        );
+        assert_eq!(
+            pages_iter.next(),
+            Some(Page {
+                page_number: 1,
+                length: 2,
+                begin: 2,
+                end: 3,
+                html: "".to_string(),
+            })
+        );
+        assert_eq!(
+            pages_iter.next(),
+            Some(Page {
+                page_number: 2,
+                length: 2,
+                begin: 4,
+                end: 5,
+                html: "".to_string(),
+            })
+        );
+        assert_eq!(pages_iter.next(), None);
     }
 
     #[test]
@@ -143,7 +164,7 @@ mod tests {
         assert_eq!(
             page,
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -167,7 +188,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 5,
                 begin: 0,
                 end: 4,
@@ -183,7 +204,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 1,
+                page_number: 1,
                 length: 5,
                 begin: 5,
                 end: 9,
@@ -207,7 +228,7 @@ mod tests {
         assert_eq!(
             page,
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -243,7 +264,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -278,7 +299,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 5,
                 begin: 0,
                 end: 4,
@@ -295,7 +316,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 1,
+                page_number: 0,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -331,7 +352,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 1,
                 begin: 0,
                 end: 0,
@@ -347,7 +368,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 1,
+                page_number: 0,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -382,7 +403,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 2,
                 begin: 0,
                 end: 1,
@@ -399,7 +420,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 1,
+                page_number: 1,
                 length: 2,
                 begin: 2,
                 end: 3,
@@ -416,7 +437,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 2,
+                page_number: 2,
                 length: 1,
                 begin: 4,
                 end: 4,
@@ -432,7 +453,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 3,
+                page_number: 0,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -469,7 +490,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 2,
                 begin: 0,
                 end: 1,
@@ -486,7 +507,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 1,
+                page_number: 1,
                 length: 2,
                 begin: 2,
                 end: 3,
@@ -503,7 +524,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 2,
+                page_number: 2,
                 length: 2,
                 begin: 4,
                 end: 5,
@@ -520,7 +541,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 3,
+                page_number: 0,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -555,7 +576,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 0,
+                page_number: 0,
                 length: 3,
                 begin: 0,
                 end: 2,
@@ -572,7 +593,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 1,
+                page_number: 1,
                 length: 2,
                 begin: 3,
                 end: 4,
@@ -589,7 +610,7 @@ mod tests {
                 }
             },
             Page {
-                offset: 2,
+                page_number: 0,
                 length: 0,
                 begin: 0,
                 end: 0,
@@ -619,7 +640,7 @@ mod tests {
             assert_eq!(
                 p,
                 Page {
-                    offset: 0,
+                    page_number: 0,
                     length: 1,
                     begin: 0,
                     end: 0,
@@ -650,7 +671,7 @@ mod tests {
             assert_eq!(
                 p,
                 Page {
-                    offset: 0,
+                    page_number: 0,
                     length: 1,
                     begin: 0,
                     end: 0,
