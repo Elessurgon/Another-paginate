@@ -75,7 +75,7 @@ impl Iterator for Pages {
     fn next(&mut self) -> Option<Self::Item> {
         let page: Option<Page> = match self.to_page_number(self.page_number) {
             Ok(page) => Some(page),
-            Err(msg) => None,
+            Err(_msg) => None,
         };
         self.page_number += 1;
         page
@@ -115,7 +115,6 @@ impl Page {
 mod tests {
 
     use super::{Page, Pages};
-    use std::fmt::{self, Error};
 
     fn get_url() -> String {
         "www.test.com/".to_string()
