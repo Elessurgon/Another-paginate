@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 
-use std::{error::Error, fmt};
+use std::fmt;
 
 #[derive(Debug)]
 pub struct OutOfBound;
